@@ -36,6 +36,57 @@ def check_escalation_needed(user_input: str):
         logger.error(f"OpenAI Error: {e}")
     return None
 
+def check_intent(user_input: str, current_state: str):
+    """
+    Classifies if the user input is a 'GENERAL_QUERY' (hello, what is this, etc.) 
+    or a 'FLOW_INPUT' (actually providing location, safety info, etc.)
+    """
+    if not client:
+        return "FLOW_INPUT"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": f"""You are an intent classifier for a roadside assistance chatbot.
+                The bot is currently in the state: {current_state}.
+                
+                Classify the user input as:
+                - 'GENERAL_QUERY': If the user is saying hello, asking what the app does, asking who you are, or making small talk.
+                - 'FLOW_INPUT': If the user is providing information requested by the state (like a location, safety status, or issue description).
+                
+                Return ONLY the category name."""},
+                {"role": "user", "content": user_input}
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+        intent = response.choices[0].message.content.strip().upper()
+        return intent if intent in ["GENERAL_QUERY", "FLOW_INPUT"] else "FLOW_INPUT"
+    except:
+        return "FLOW_INPUT"
+
+def handle_general_query(user_input: str):
+    """
+    Answers general questions about 1Charge without breaking the state machine.
+    """
+    if not client:
+        return "I am the 1Charge assistant here to help with your breakdown. How can I assist?"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are the 1Charge assistant. Answer the user's greeting or general question briefly (under 20 words). Remind them that you are here to help with roadside assistance/breakdowns. Do not ask for their location yet."},
+                {"role": "user", "content": user_input}
+            ],
+            max_tokens=50,
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except:
+        return "I'm 1Charge, your roadside assistance partner. How can I help you today?"
+
 def generate_ai_response(user_input: str):
     if not client:
         return "I'm having trouble connecting to AI services."

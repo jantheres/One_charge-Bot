@@ -8,7 +8,7 @@ from app.services.chat_service import (
     handle_safety_assessment, handle_issue_identification,
     handle_service_routing, save_conversation
 )
-from app.core.ai import generate_ai_response
+from app.core.ai import generate_ai_response, check_intent, handle_general_query
 import uuid
 
 router = APIRouter()
@@ -65,8 +65,20 @@ async def process_message(req: MessageRequest):
         if escalation_reason:
             response = handle_escalation(session, escalation_reason)
             return response
+
+    # 2. General Query / Small Talk Check
+    if session.state != "ESCALATED":
+        intent = check_intent(user_input, session.state)
+        if intent == "GENERAL_QUERY":
+            bot_msg = handle_general_query(user_input)
+            # Stay in current state, just answer the question
+            return {
+                "message": bot_msg,
+                "state": session.state,
+                "options": ["Share GPS Location", "Type Address"] if session.state == "AWAITING_LOCATION" else None
+            }
             
-    # 2. State Machine
+    # 3. State Machine
     state = session.state
     response = {}
     
