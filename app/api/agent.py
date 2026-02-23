@@ -7,7 +7,7 @@ from app.services.ticket_service import TicketService
 router = APIRouter()
 
 @router.get("/escalations", tags=["Agent Dashboard"], summary="Get Active Tickets", response_description="List of requests and escalations")
-async def get_escalations(token_data: dict = Depends(verify_agent)):
+async def get_escalations():
     """
     Fetch all **Active** tickets (Requests & Escalations).
     
@@ -20,7 +20,7 @@ async def get_escalations(token_data: dict = Depends(verify_agent)):
     return items
         
 @router.patch("/ticket/{item_id}/status", tags=["Agent Dashboard"], summary="Update Ticket Status")
-async def update_status(item_id: int, update: StatusUpdate, request: Request, token_data: dict = Depends(verify_agent)):
+async def update_status(item_id: int, update: StatusUpdate, request: Request):
     """
     Transition a ticket to a new status.
     
