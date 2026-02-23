@@ -159,7 +159,7 @@
     <div id="empty-state">✅ No pending escalations. Good job!</div>
 
     <script>
-        const API_URL = 'http://localhost:5000/api/agent/escalations';
+        const API_URL = 'http://localhost:8000/api/agent/escalations';
 
         async function fetchEscalations() {
             try {
@@ -266,7 +266,7 @@
 
             try {
                 // New endpoint matches: /api/agent/resolve/<id>?source=TYPE
-                await fetch(`http://localhost:5000/api/agent/resolve/${id}?source=${source}`, { method: 'POST' });
+                await fetch(`http://localhost:8000/api/agent/resolve/${id}?source=${source}`, { method: 'POST' });
                 fetchEscalations(); // Reload
             } catch (error) {
                 alert('Error resolving ticket: ' + error.message);
