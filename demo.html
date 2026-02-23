@@ -90,21 +90,10 @@
 </head>
 
 <body>
-    <div id="loginModal"
-        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-        <div style="background: white; padding: 40px; border-radius: 10px; text-align: center; width: 300px;">
-            <h2>🔐 Login to 1Charge</h2>
-            <p>Enter your phone number to continue</p>
-            <input type="text" id="phoneInput" placeholder="e.g. 9876543211" style="width: 100%; margin-bottom: 20px;">
-            <button onclick="login()" style="width: 100%;">Login</button>
-            <p id="loginError" style="color: red; margin-top: 10px;"></p>
-        </div>
-    </div>
-
     <div class="container">
         <h1>🤖 1Charge Chatbot - Working Demo</h1>
         <div class="info">
-            <strong>✅ Backend Status:</strong> Connected to http://localhost:8000<br>
+            <strong>✅ Backend Status:</strong> Connected to https://web-production-54b15.up.railway.app<br>
             <strong>Session ID:</strong> <span id="sessionId">Not started</span>
         </div>
 
@@ -123,32 +112,8 @@
 
     <script>
         let sessionId = null;
-        let authToken = null;
-        const CHATBOT_URL = 'http://localhost:8000/api';
-
-        async function login() {
-            const phone = document.getElementById('phoneInput').value;
-            if (!phone) return;
-
-            try {
-                const response = await fetch(`${CHATBOT_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: phone })
-                });
-                const data = await response.json();
-
-                if (data.access_token) {
-                    authToken = data.access_token;
-                    document.getElementById('loginModal').style.display = 'none';
-                    startChat();
-                } else {
-                    document.getElementById('loginError').textContent = 'Login failed';
-                }
-            } catch (error) {
-                document.getElementById('loginError').textContent = 'Connection error';
-            }
-        }
+        let authToken = null; // No longer required for chat
+        const CHATBOT_URL = 'https://web-production-54b15.up.railway.app/api';
 
         function addMessage(text, type) {
             const chat = document.getElementById('chat');
@@ -164,8 +129,7 @@
                 addMessage('Starting new session...', 'system');
                 // Note: /start is now SECURED
                 const response = await fetch(`${CHATBOT_URL}/chatbot/start`, {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + authToken }
+                    method: 'POST'
                 });
                 const data = await response.json();
 

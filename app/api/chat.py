@@ -16,7 +16,7 @@ import uuid
 router = APIRouter()
 
 @router.post("/start", tags=["Chatbot"], summary="Start New Session", response_description="New Session ID and Welcome Message")
-async def start_conversation(request: Request, token_data: dict = Depends(verify_token)):
+async def start_conversation(request: Request):
     """
     Start a new Chatbot conversation.
     
@@ -29,10 +29,9 @@ async def start_conversation(request: Request, token_data: dict = Depends(verify
     session = create_session(session_id)
     
     # Extract user info from token (or DB if needed, but token is faster)
-    user_id = token_data.get("user_id")
-    # For now, we don't have name in token, defaulting to "Valued Customer" or fetching from DB if critical
-    # Ideally, token generation should include 'name'
-    user_name = "Valued Customer"
+    # For now, using guest defaults since token isn't required
+    user_id = None
+    user_name = "Guest User"
     
     response = initialize_session_with_user(session, user_id, user_name)
     
@@ -44,7 +43,7 @@ async def start_conversation(request: Request, token_data: dict = Depends(verify
     }
 
 @router.post("/message", tags=["Chatbot"], summary="Send Message", response_description="Bot Reply")
-async def process_message(req: MessageRequest, token_data: dict = Depends(verify_token)):
+async def process_message(req: MessageRequest):
     """
     Process a user message in the active session.
     
