@@ -1,7 +1,6 @@
 
-from fastapi import APIRouter, HTTPException, Depends, Request
-from app.api import auth
-from app.models.schemas import MessageRequest
+from fastapi import APIRouter, HTTPException
+from app.models.schemas import MessageRequest, StartResponse, ChatResponse
 from app.services.chat_service import (
     sessions, ChatbotSession, get_session, create_session,
     check_escalation_needed, handle_escalation,
@@ -10,13 +9,12 @@ from app.services.chat_service import (
     handle_service_routing, save_conversation
 )
 from app.core.ai import generate_ai_response
-from app.core.security import verify_token
 import uuid
 
 router = APIRouter()
 
-@router.post("/start", tags=["Chatbot"], summary="Start New Session", response_description="New Session ID and Welcome Message")
-async def start_conversation(request: Request):
+@router.post("/start", tags=["Chatbot"], summary="Start New Session", response_model=StartResponse)
+async def start_conversation():
     """
     Start a new Chatbot conversation.
     
@@ -27,8 +25,7 @@ async def start_conversation(request: Request):
     
     session = create_session(session_id)
     
-    # Extract user info from token (or DB if needed, but token is faster)
-    # For now, using guest defaults since token isn't required
+    # Guest defaults
     user_id = None
     user_name = "Guest User"
     
@@ -41,7 +38,7 @@ async def start_conversation(request: Request):
         "options": response.get("options")
     }
 
-@router.post("/message", tags=["Chatbot"], summary="Send Message", response_description="Bot Reply")
+@router.post("/message", tags=["Chatbot"], summary="Send Message", response_model=ChatResponse)
 async def process_message(req: MessageRequest):
     """
     Process a user message in the active session.
@@ -82,11 +79,11 @@ async def process_message(req: MessageRequest):
     elif state == "AWAITING_SERVICE_PREFERENCE":
         response = handle_service_routing(session, user_input)
     elif state == "COMPLETED":
-        response = {"message": "Session ended. Start new chat."}
+        response = {"message": "Session ended. Start new chat.", "state": "COMPLETED"}
     elif state == "ESCALATED":
         response = {"message": generate_ai_response(user_input), "state": "ESCALATED"} 
     else:
-        response = {"message": "I'm confused. Let's restart."}
+        response = {"message": "I'm confused. Let's restart.", "state": "UNKNOWN"}
         
     # Save Log
     save_conversation(session_id, user_input, response.get('message', ''), session.state, response.get('should_escalate', False))
