@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>1Charge Agent Dashboard</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="30"> <!-- Auto refresh fallback -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #343a40;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .refresh-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .refresh-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 0;
+            overflow: hidden;
+            border-left: 5px solid #28a745;
+            /* Default Green */
+        }
+
+        .card.high-priority {
+            border-left-color: #dc3545;
+        }
+
+        /* Red */
+        .card.medium-priority {
+            border-left-color: #ffc107;
+        }
+
+        /* Yellow */
+
+        .card-header {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-body {
+            padding: 15px;
+        }
+
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .bg-red {
+            background-color: #dc3545;
+        }
+
+        .bg-yellow {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .bg-blue {
+            background-color: #17a2b8;
+        }
+
+        .detail-row {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .detail-label {
+            font-weight: bold;
+            color: #6c757d;
+            width: 100px;
+            display: inline-block;
+        }
+
+        .actions {
+            padding: 15px;
+            background-color: #f8f9fa;
+            text-align: right;
+        }
+
+        .resolve-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .resolve-btn:hover {
+            background-color: #218838;
+        }
+
+        #empty-state {
+            text-align: center;
+            color: #6c757d;
+            margin-top: 50px;
+            font-size: 18px;
+            grid-column: 1 / -1;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div>
+            <h1>👮 1Charge Support Dashboard</h1>
+            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">Live Incoming Escalations</div>
+        </div>
+        <button class="refresh-btn" onclick="fetchEscalations()">🔄 Refresh Data</button>
+    </div>
+
+    <div id="escalation-grid" class="grid"></div>
+    <div id="empty-state">✅ No pending escalations. Good job!</div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api/agent/escalations';
+
+        async function fetchEscalations() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                renderCards(data);
+            } catch (error) {
+                console.error('Error fetching escalations:', error);
+            }
+        }
+
+        function renderCards(escalations) {
+            const grid = document.getElementById('escalation-grid');
+            const emptyState = document.getElementById('empty-state');
+            grid.innerHTML = '';
+
+            if (!escalations || escalations.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            escalations.forEach(esc => {
+                const card = document.createElement('div');
+
+                // Determine priority style and badge
+                let priorityClass = '';
+                let badgeClass = 'bg-blue';
+                const reason = esc.type || esc.reason || 'UNKNOWN'; // Normalized field
+                const source = esc.source || 'ESCALATION';
+
+                if (source === 'ESCALATION') {
+                    if (reason.includes('ACCIDENT') || reason.includes('UNSAFE')) {
+                        priorityClass = 'high-priority';
+                        badgeClass = 'bg-red';
+                    } else if (reason.includes('EMOTIONAL')) {
+                        priorityClass = 'medium-priority';
+                        badgeClass = 'bg-yellow';
+                    } else {
+                        priorityClass = 'medium-priority'; // Default escalation is medium
+                        badgeClass = 'bg-yellow';
+                    }
+                } else {
+                    // Service Requests (Standard)
+                    priorityClass = ''; // Default style (Blue/Green border)
+                    badgeClass = 'bg-blue';
+                }
+
+                // Parse collected data safely
+                let locationHtml = '<span style="color: grey;">Unknown</span>';
+                let sessionDetails = esc.collected_data || {};
+
+                if (typeof sessionDetails === 'string') {
+                    try { sessionDetails = JSON.parse(sessionDetails); } catch (e) { }
+                }
+
+                // Handle different location structures
+                let loc = sessionDetails.location || sessionDetails.location_description;
+                if (!loc && sessionDetails.latitude) {
+                    loc = `${sessionDetails.latitude}, ${sessionDetails.longitude}`;
+                }
+
+                if (loc) {
+                    // Clean "GPS:" prefix if generic text field contained it
+                    let cleanLoc = loc.toString().replace(/gps:/i, '').trim();
+
+                    if (sessionDetails.location_type === 'GPS' ||
+                        sessionDetails.location_type === 'GPS_RAW' ||
+                        (sessionDetails.latitude && sessionDetails.longitude) ||
+                        /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(cleanLoc)) { // Regex check for coordinates
+
+                        locationHtml = `<a href="https://www.google.com/maps?q=${cleanLoc}" target="_blank" style="text-decoration: none; color: #007bff;">📍 View on Map</a>`;
+                    } else {
+                        locationHtml = `🏠 ${loc}`;
+                    }
+                }
+
+                const time = new Date(esc.created_at).toLocaleTimeString();
+
+                card.className = `card ${priorityClass}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <strong>#${esc.id}</strong>
+                        <span class="badge ${badgeClass}">${reason}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="detail-row"><span class="detail-label">Type:</span> <b>${source}</b></div>
+                        <div class="detail-row"><span class="detail-label">Time:</span> ${time}</div>
+                        <div class="detail-row"><span class="detail-label">Customer:</span> ${esc.customer_name || 'Guest'} (${esc.phone || 'N/A'})</div>
+                        <div class="detail-row"><span class="detail-label">Vehicle:</span> ${esc.vehicle_model || 'Unknown'}</div>
+                        <div class="detail-row"><span class="detail-label">Location:</span> ${locationHtml}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="resolve-btn" onclick="resolveTicket(${esc.id}, '${source}')">✅ Mark Resolved</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function resolveTicket(id, source) {
+            if (!confirm('Are you sure you want to mark this ticket as resolved?')) return;
+
+            try {
+                // New endpoint matches: /api/agent/resolve/<id>?source=TYPE
+                await fetch(`http://localhost:5000/api/agent/resolve/${id}?source=${source}`, { method: 'POST' });
+                fetchEscalations(); // Reload
+            } catch (error) {
+                alert('Error resolving ticket: ' + error.message);
+            }
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(fetchEscalations, 5000);
+
+        // Initial load
+        fetchEscalations();
+    </script>
+</body>
+
+</html>
