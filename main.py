@@ -10,6 +10,10 @@ from app.api.agent import router as agent_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
+@app.get("/", tags=["Root"])
+async def root():
+    return {"message": "Welcome to the 1Charge Chatbot API. Visit /docs for documentation."}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
