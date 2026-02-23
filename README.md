@@ -150,13 +150,6 @@ pip install -r requirements.txt
     *   Add your `OPENAI_API_KEY`.
     *   Update DB credentials if necessary.
 
-### 4. Start the Backend Server
-Open a terminal in the project folder and run:
-```bash
-python chatbot_service.py
-```
-> The server will start on `http://localhost:5000`.
-
 ---
 
 ## 🎮 How to Run the Demo
