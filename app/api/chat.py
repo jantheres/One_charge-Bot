@@ -20,9 +20,8 @@ async def start_conversation(request: Request):
     """
     Start a new Chatbot conversation.
     
-    *   **Requires Auth**: Valid User Token.
-    *   **Auto-Identity**: Automatically detects user from token, skipping 'What is your name?'.
     *   **Initial State**: Jumps directly to `AWAITING_LOCATION`.
+    *   **Guest Access**: Public endpoint, no login required.
     """
     session_id = f"session_{uuid.uuid4().hex[:12]}"
     
