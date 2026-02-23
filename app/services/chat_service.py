@@ -2,7 +2,7 @@
 from typing import Dict
 from datetime import datetime
 from app.db.connection import get_db_connection
-from app.core.ai import check_escalation_needed, generate_ai_response
+from app.core.ai import generate_ai_response
 import json
 
 class ChatbotSession:
@@ -60,54 +60,39 @@ def initialize_session_with_user(session: ChatbotSession, user_id: int, user_nam
     session.update_state("AWAITING_LOCATION")
     
     return {
-        "message": f"Hello! I'm your 1Charge assistant. I'm here to help with any vehicle breakdowns. To get started, could you please share your current location?",
+        "message": "Welcome to 1Charge — your roadside assistance partner. I'm here to ensure you get back on the road safely and quickly. To start, could you please share your current location or type your address?",
         "state": "AWAITING_LOCATION",
         "options": ["Share GPS Location", "Type Address"]
     }
 
-def handle_location_collection(session: ChatbotSession, user_input: str, msg_type: str):
-    # Validation: If input is very short and not GPS, ask for more detail
-    if msg_type == 'text' and len(user_input.split()) < 2 and not any(char.isdigit() for char in user_input):
-         return {
-            "message": "I'm sorry, I couldn't quite get that address. Could you provide a more specific location or landmark?",
-            "state": "AWAITING_LOCATION",
-            "options": ["Share GPS Location", "Type Address"]
-        }
+def handle_location_collection(session: ChatbotSession, user_input: str, msg_type: str, verified_location: str = None):
+    # Only move forward if AI actually extracted a location OR it's a GPS message
+    if not verified_location and msg_type != 'gps' and 'gps:' not in user_input.lower():
+        return {"success": False, "message": "I haven't received a valid location yet. Please share your address or GPS."}
 
-    if msg_type == 'gps' or 'gps:' in user_input.lower():
-        try:
-            coords = user_input.lower().replace('gps:', '').strip()
-            session.collected_data['location'] = coords
-            session.collected_data['location_type'] = 'GPS_RAW'
-        except:
-             session.collected_data['location'] = user_input
-    else:
-        session.collected_data['location'] = user_input
-        session.collected_data['location_type'] = 'ADDRESS'
+    # Save the polished location from AI or the raw input if GPS
+    location_to_save = verified_location or user_input
+    session.collected_data['location'] = location_to_save
+    session.collected_data['location_type'] = 'GPS' if msg_type == 'gps' else 'ADDRESS'
         
     session.update_state("AWAITING_SAFETY_CHECK")
-    return {
-        "message": "Thank you. Location recorded. Now, for your safety: Are you currently in a safe spot away from traffic?",
-        "state": "AWAITING_SAFETY_CHECK",
-        "options": ["Yes, I am safe", "No, I am in danger/not safe"]
-    }
+    return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
 
 def handle_safety_assessment(session: ChatbotSession, user_input: str):
     user_input_lower = user_input.lower()
     
     # Check for danger/unsafe signs
     if any(word in user_input_lower for word in ["danger", "not safe", "unsafe", "no", "help", "risk"]):
-        session.update_state("ESCALATED")
+        # The document emphasizes Safety Check as the priority
         return handle_escalation(session, "UNSAFE_LOCATION")
         
-    # Check for safety confirmation
-    if any(word in user_input_lower for word in ["yes", "safe", "ok", "fine", "yeah"]):
+    if any(word in user_input_lower for word in ["yes", "safe", "ok", "fine", "yeah", "with the vehicle"]):
         session.collected_data['safe_status'] = "SAFE"
         session.update_state("AWAITING_ISSUE_TYPE")
         return {
-            "message": "Glad to hear you are safe. Can you describe the issue? Or select from options:",
-            "state": "AWAITING_ISSUE_TYPE",
-            "options": ["Engine not starting", "Flat tyre", "Battery issue", "Overheating", "Accident / collision"]
+            "success": True, 
+            "message": "I'm glad to hear you're safe. To assist you better: What issue are you experiencing with your car?",
+            "options": ["Engine not starting", "Flat tyre", "Battery issue", "Overheating", "Accident / collision", "Other (describe)"]
         }
     
     # If ambiguous, ask again
@@ -121,13 +106,14 @@ def handle_issue_identification(session: ChatbotSession, user_input: str):
     issue = user_input
     session.collected_data['issue'] = issue
     
+    # Crisis detection causes immediate escalation as per "When Human Touch is Needed"
     if any(word in issue.lower() for word in ["accident", "collision", "crash", "hit"]):
         return handle_escalation(session, "ACCIDENT")
         
     session.update_state("AWAITING_SERVICE_PREFERENCE")
     return {
-        "message": f"Understood: {issue}. To solve this, would you like on-spot repair or towing to a service center?",
-        "state": "AWAITING_SERVICE_PREFERENCE",
+        "success": True,
+        "message": f"Recorded: {issue}. To solve this, would you like on-spot repair or towing to a service center?",
         "options": ["On-Spot Repair", "Towing Assistance"]
     }
 
@@ -144,6 +130,7 @@ def handle_service_routing(session: ChatbotSession, user_input: str):
         session.collected_data.get('location')
     )
         
+    session.collected_data['request_id'] = req_id
     session.update_state("COMPLETED")
     return {
         "message": f"Got it! Request {req_id} has been created for {service}. A technician is being assigned right now. Please stay near your phone.",

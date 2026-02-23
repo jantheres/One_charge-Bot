@@ -3,23 +3,25 @@ from fastapi import APIRouter, HTTPException
 from app.models.schemas import MessageRequest, StartResponse, ChatResponse
 from app.services.chat_service import (
     sessions, ChatbotSession, get_session, create_session,
-    check_escalation_needed, handle_escalation,
+    handle_escalation,
     initialize_session_with_user, handle_location_collection,
     handle_safety_assessment, handle_issue_identification,
     handle_service_routing, save_conversation
 )
-from app.core.ai import generate_ai_response, check_intent, handle_general_query
+from app.core.ai import (
+    generate_ai_response, get_unified_response
+)
 import uuid
 
 router = APIRouter()
 
-@router.post("/start", tags=["Chatbot"], summary="Start New Session", response_model=StartResponse)
+@router.api_route("/start", methods=["GET", "POST"], tags=["Chatbot"], summary="Start New Session", response_model=StartResponse)
 async def start_conversation():
     """
     Start a new Chatbot conversation.
     
+    *   **Supports**: Both `GET` and `POST`.
     *   **Initial State**: Jumps directly to `AWAITING_LOCATION`.
-    *   **Guest Access**: Public endpoint, no login required.
     """
     session_id = f"session_{uuid.uuid4().hex[:12]}"
     
@@ -57,48 +59,68 @@ async def process_message(req: MessageRequest):
         raise HTTPException(status_code=404, detail="Session expired or invalid")
         
     session = sessions[session_id]
+    
+    # NEW: Safety check - don't process if journey is done
+    if session.state == "COMPLETED":
+        return {
+            "message": "This request is already completed and help is on the way. If you have a new issue, please start a new session.",
+            "state": "COMPLETED",
+            "request_id": session.collected_data.get("request_id")
+        }
+
     session.add_message("user", user_input)
     
-    # 1. Escalation Check
-    if session.state != "ESCALATED":
-        escalation_reason = check_escalation_needed(user_input)
-        if escalation_reason:
-            response = handle_escalation(session, escalation_reason)
-            return response
+    analysis = get_unified_response(
+        user_input=user_input,
+        state=session.state,
+        history=session.conversation_history,
+        collected_data=session.collected_data,
+        logic_guidance=None
+    )
 
-    # 2. General Query / Small Talk Check
-    if session.state != "ESCALATED":
-        intent = check_intent(user_input, session.state)
-        if intent == "GENERAL_QUERY":
-            bot_msg = handle_general_query(user_input)
-            # Stay in current state, just answer the question
-            return {
-                "message": bot_msg,
-                "state": session.state,
-                "options": ["Share GPS Location", "Type Address"] if session.state == "AWAITING_LOCATION" else None
-            }
-            
-    # 3. State Machine
-    state = session.state
-    response = {}
+    # 2. Logic Execution (Source of Truth)
+    # We use the AI's extraction to guide the logic
+    res = {"success": True, "message": None}
+    current_state = session.state
+    extracted = analysis.get("extracted", {})
     
-    if state == "AWAITING_LOCATION":
-        response = handle_location_collection(session, user_input, message_type)
-    elif state == "AWAITING_SAFETY_CHECK":
-        response = handle_safety_assessment(session, user_input)
-    elif state == "AWAITING_ISSUE_TYPE":
-        response = handle_issue_identification(session, user_input)
-    elif state == "AWAITING_SERVICE_PREFERENCE":
-        response = handle_service_routing(session, user_input)
-    elif state == "COMPLETED":
-        response = {"message": "Session ended. Start new chat.", "state": "COMPLETED"}
-    elif state == "ESCALATED":
-        response = {"message": generate_ai_response(user_input), "state": "ESCALATED"} 
-    else:
-        response = {"message": "I'm confused. Let's restart.", "state": "UNKNOWN"}
-        
-    # Save Log
+    if current_state == "AWAITING_LOCATION":
+        res = handle_location_collection(
+            session, 
+            user_input, 
+            req.message_type, 
+            verified_location=extracted.get("location")
+        )
+    elif current_state == "AWAITING_SAFETY_CHECK":
+        res = handle_safety_assessment(session, user_input)
+    elif current_state == "AWAITING_ISSUE_TYPE":
+        res = handle_issue_identification(session, user_input)
+    elif current_state == "AWAITING_SERVICE_PREFERENCE":
+        res = handle_service_routing(session, user_input)
+
+    # 3. Final Bot Message (AI translates the logic result into premium voice)
+    # If the logic failed (e.g. invalid location), AI must tell the user to fix it.
+    final_analysis = get_unified_response(
+        user_input=user_input,
+        state=session.state, # Updated state
+        history=session.conversation_history,
+        collected_data=session.collected_data,
+        logic_guidance=res.get("message") # Tells AI exactly what happened in the logic
+    )
+    
+    # 4. Handle Escalation
+    if final_analysis.get("escalation") and session.state != "ESCALATED":
+        return handle_escalation(session, final_analysis["escalation"])
+
+    response = {
+        "message": final_analysis.get("message"),
+        "state": session.state,
+        "options": ["Share GPS Location", "Type Address"] if session.state == "AWAITING_LOCATION" else None,
+        "request_id": session.collected_data.get("request_id")
+    }
+
+    # Save and update history
     save_conversation(session_id, user_input, response.get('message', ''), session.state, response.get('should_escalate', False))
-    session.add_message("bot", response.get('message', ''))
+    session.add_message("assistant", response.get('message', ''))
     
     return response
