@@ -1,6 +1,6 @@
 -- Create database
-CREATE DATABASE IF NOT EXISTS chatbot_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE chatbot_db;
+CREATE DATABASE IF NOT EXISTS breakdown_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE breakdown_db;
 
 -- Customers table
 CREATE TABLE IF NOT EXISTS customers (

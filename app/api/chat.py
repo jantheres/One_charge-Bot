@@ -1,9 +1,9 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models.schemas import MessageRequest, StartResponse, ChatResponse
 from app.services.chat_service import (
     sessions, ChatbotSession, get_session, create_session,
-    handle_escalation,
+    handle_escalation, handle_escalated_conversation,
     initialize_session_with_user, handle_location_collection,
     handle_safety_assessment, handle_issue_identification,
     handle_service_routing, save_conversation
@@ -11,25 +11,27 @@ from app.services.chat_service import (
 from app.core.ai import (
     generate_ai_response, get_unified_response
 )
+from app.core.security import verify_token
 import uuid
 
 router = APIRouter()
 
 @router.api_route("/start", methods=["GET", "POST"], tags=["Chatbot"], summary="Start New Session", response_model=StartResponse)
-async def start_conversation():
+async def start_conversation(payload: dict = Depends(verify_token)):
     """
     Start a new Chatbot conversation.
     
-    *   **Supports**: Both `GET` and `POST`.
+    *   **Requires**: Valid JWT Bearer Token (from `/api/auth/login`).
     *   **Initial State**: Jumps directly to `AWAITING_LOCATION`.
+    *   User identity is auto-extracted from the token.
     """
     session_id = f"session_{uuid.uuid4().hex[:12]}"
     
     session = create_session(session_id)
     
-    # Guest defaults
-    user_id = None
-    user_name = "Guest User"
+    # Extract user info from JWT token
+    user_id = payload.get("user_id")
+    user_name = payload.get("name", "User")
     
     response = initialize_session_with_user(session, user_id, user_name)
     
@@ -41,10 +43,11 @@ async def start_conversation():
     }
 
 @router.post("/message", tags=["Chatbot"], summary="Send Message", response_model=ChatResponse)
-async def process_message(req: MessageRequest):
+async def process_message(req: MessageRequest, payload: dict = Depends(verify_token)):
     """
     Process a user message in the active session.
     
+    *   **Requires**: Valid JWT Bearer Token.
     *   **session_id**: The active session ID from `/start`.
     *   **message**: The user's text input or coordinate string.
     *   **message_type**: 'text' (default) or 'gps' (for raw coordinates).
@@ -97,6 +100,16 @@ async def process_message(req: MessageRequest):
         res = handle_issue_identification(session, user_input)
     elif current_state == "AWAITING_SERVICE_PREFERENCE":
         res = handle_service_routing(session, user_input)
+    elif current_state == "ESCALATED":
+        res = handle_escalated_conversation(session, user_input)
+        # Agent Sarah responded directly, skip the second AI call
+        save_conversation(session_id, user_input, res.get('message', ''), session.state, True)
+        session.add_message("assistant", res.get('message', ''))
+        return {
+            "message": res.get("message"),
+            "state": "ESCALATED",
+            "should_escalate": True
+        }
 
     # 3. Final Bot Message (AI translates the logic result into premium voice)
     # If the logic failed (e.g. invalid location), AI must tell the user to fix it.

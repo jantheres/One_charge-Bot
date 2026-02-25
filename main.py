@@ -7,6 +7,7 @@ from app.core.config import settings
 # Import Routers
 from app.api.chat import router as chat_router
 from app.api.agent import router as agent_router
+from app.api.auth import router as auth_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 # Include Routers
+app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth")
 app.include_router(chat_router, prefix=f"{settings.API_V1_STR}/chatbot")
 app.include_router(agent_router, prefix=f"{settings.API_V1_STR}/agent")
 

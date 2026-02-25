@@ -122,12 +122,18 @@ from app.services.ticket_service import TicketService
 def handle_service_routing(session: ChatbotSession, user_input: str):
     service = "TOWING" if "tow" in user_input.lower() else "REPAIR"
     
+    # Build proper location dict for DB storage
+    location_data = {
+        "address": session.collected_data.get('location', ''),
+        "type": session.collected_data.get('location_type', 'ADDRESS')
+    }
+    
     req_id = TicketService.create_service_request(
         session.collected_data.get('customer_id'),
         session.session_id,
         session.collected_data.get('issue'),
         service,
-        session.collected_data.get('location')
+        location_data
     )
         
     session.collected_data['request_id'] = req_id
@@ -136,6 +142,15 @@ def handle_service_routing(session: ChatbotSession, user_input: str):
         "message": f"Got it! Request {req_id} has been created for {service}. A technician is being assigned right now. Please stay near your phone.",
         "state": "COMPLETED",
         "request_id": req_id
+    }
+
+def handle_escalated_conversation(session: ChatbotSession, user_input: str):
+    """Handle messages after escalation — Agent Sarah (AI) responds."""
+    ai_response = generate_ai_response(user_input, session.conversation_history)
+    return {
+        "success": True,
+        "message": ai_response,
+        "state": "ESCALATED"
     }
 
 def handle_escalation(session: ChatbotSession, reason: str):

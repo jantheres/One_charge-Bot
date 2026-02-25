@@ -7,10 +7,11 @@ from app.services.ticket_service import TicketService
 router = APIRouter()
 
 @router.get("/escalations", tags=["Agent Dashboard"], summary="Get Active Tickets", response_description="List of requests and escalations")
-async def get_escalations():
+async def get_escalations(payload: dict = Depends(verify_agent)):
     """
     Fetch all **Active** tickets (Requests & Escalations).
     
+    *   **Requires**: Valid JWT with `agent` role.
     Includes tickets with status: `OPEN`, `IN_PROGRESS`, `DISPATCHED`, `ON_SITE`.
     Does **NOT** include `RESOLVED` tickets (unless modified).
     """
@@ -20,10 +21,11 @@ async def get_escalations():
     return items
         
 @router.patch("/ticket/{item_id}/status", tags=["Agent Dashboard"], summary="Update Ticket Status")
-async def update_status(item_id: int, update: StatusUpdate, request: Request):
+async def update_status(item_id: int, update: StatusUpdate, request: Request, payload: dict = Depends(verify_agent)):
     """
     Transition a ticket to a new status.
     
+    *   **Requires**: Valid JWT with `agent` role.
     *   **source**: Query param 'REQUEST' or 'ESCALATION' (default).
     *   **status**: One of `OPEN`, `IN_PROGRESS`, `DISPATCHED`, `ON_SITE`, `RESOLVED`, `CLOSED`.
     """
@@ -34,3 +36,4 @@ async def update_status(item_id: int, update: StatusUpdate, request: Request):
         return {"message": f"Updated ticket {item_id} to {update.status.upper()}"}
     else:
         raise HTTPException(status_code=500, detail="Failed to update ticket")
+

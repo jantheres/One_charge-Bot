@@ -15,29 +15,41 @@ async def login(request: LoginRequest):
     
     Returns a short-lived **JWT Bearer Token** for authorized access to Chat and Agent APIs.
     """
+    # Validate phone is not empty
+    if not request.phone or not request.phone.strip():
+        raise HTTPException(status_code=400, detail="Phone number is required")
+    
     conn = get_db_connection()
-    user_id = None
+    if not conn:
+        raise HTTPException(status_code=503, detail="Database service unavailable")
+    
+    user = None
     role = "user"
     
     # Simple Admin Logic for MVP
     if request.phone == "9999999999":
         role = "agent"
     
-    if conn:
+    try:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM customers WHERE phone = %s", (request.phone,))
         user = cursor.fetchone()
-        if user:
-            user_id = user['id']
-        else:
-            # Auto-register logic (omitted for brevity)
-            pass
         cursor.close()
+    finally:
         conn.close()
-
-    token_data = {"sub": request.phone, "role": role}
-    if user_id:
-        token_data["user_id"] = user_id
+    
+    # Reject unregistered phone numbers
+    if not user:
+        raise HTTPException(status_code=401, detail="Phone number not registered. Please contact support.")
+    
+    token_data = {
+        "sub": request.phone,
+        "role": role,
+        "user_id": user["id"],
+        "name": user.get("name", "User"),
+        "vehicle_model": user.get("vehicle_model", ""),
+    }
         
     access_token = create_access_token(token_data)
     return {"access_token": access_token, "token_type": "bearer"}
+

@@ -265,8 +265,11 @@
             if (!confirm('Are you sure you want to mark this ticket as resolved?')) return;
 
             try {
-                // New endpoint matches: /api/agent/resolve/<id>?source=TYPE
-                await fetch(`https://web-production-54b15.up.railway.app/api/agent/resolve/${id}?source=${source}`, { method: 'POST' });
+                await fetch(`https://web-production-54b15.up.railway.app/api/agent/ticket/${id}/status?source=${source}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'RESOLVED' })
+                });
                 fetchEscalations(); // Reload
             } catch (error) {
                 alert('Error resolving ticket: ' + error.message);
