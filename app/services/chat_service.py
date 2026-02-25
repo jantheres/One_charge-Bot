@@ -66,17 +66,32 @@ def initialize_session_with_user(session: ChatbotSession, user_id: int, user_nam
     }
 
 def handle_location_collection(session: ChatbotSession, user_input: str, msg_type: str, verified_location: str = None):
-    # Only move forward if AI actually extracted a location OR it's a GPS message
-    if not verified_location and msg_type != 'gps' and 'gps:' not in user_input.lower():
-        return {"success": False, "message": "I haven't received a valid location yet. Please share your address or GPS."}
+    # GPS message - always accept
+    if msg_type == 'gps' or 'gps:' in user_input.lower():
+        location_to_save = verified_location or user_input
+        session.collected_data['location'] = location_to_save
+        session.collected_data['location_type'] = 'GPS'
+        session.update_state("AWAITING_SAFETY_CHECK")
+        return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
+    
+    # AI extracted a location - use it
+    if verified_location:
+        session.collected_data['location'] = verified_location
+        session.collected_data['location_type'] = 'ADDRESS'
+        session.update_state("AWAITING_SAFETY_CHECK")
+        return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
+    
+    # Text input - accept if it looks like a real location (3+ chars, not just greetings)
+    greetings = ["hi", "hello", "hey", "help", "yes", "no", "ok"]
+    cleaned = user_input.strip().lower()
+    if len(cleaned) >= 3 and cleaned not in greetings:
+        session.collected_data['location'] = user_input.strip()
+        session.collected_data['location_type'] = 'ADDRESS'
+        session.update_state("AWAITING_SAFETY_CHECK")
+        return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
+    
+    return {"success": False, "message": "I haven't received a valid location yet. Please share your address or GPS."}
 
-    # Save the polished location from AI or the raw input if GPS
-    location_to_save = verified_location or user_input
-    session.collected_data['location'] = location_to_save
-    session.collected_data['location_type'] = 'GPS' if msg_type == 'gps' else 'ADDRESS'
-        
-    session.update_state("AWAITING_SAFETY_CHECK")
-    return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
 
 def handle_safety_assessment(session: ChatbotSession, user_input: str):
     user_input_lower = user_input.lower()
