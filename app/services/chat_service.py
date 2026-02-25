@@ -23,15 +23,70 @@ class ChatbotSession:
             "timestamp": datetime.now().isoformat()
         })
 
-# In-memory session store (Ideally Redis)
+# In-memory cache (fast access) + DB persistence (survives restarts)
 sessions: Dict[str, ChatbotSession] = {}
 
+def _save_session_to_db(session: ChatbotSession):
+    """Persist session to database."""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO chat_sessions (session_id, state, collected_data, conversation_history)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    state = VALUES(state),
+                    collected_data = VALUES(collected_data),
+                    conversation_history = VALUES(conversation_history),
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                session.session_id,
+                session.state,
+                json.dumps(session.collected_data),
+                json.dumps(session.conversation_history)
+            ))
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            print(f"Session save error: {e}")
+        finally:
+            conn.close()
+
+def _load_session_from_db(session_id: str):
+    """Load session from database if not in memory."""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM chat_sessions WHERE session_id = %s", (session_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            if row:
+                session = ChatbotSession(session_id)
+                session.state = row["state"]
+                session.collected_data = json.loads(row["collected_data"]) if row["collected_data"] else {}
+                session.conversation_history = json.loads(row["conversation_history"]) if row["conversation_history"] else []
+                sessions[session_id] = session  # cache it
+                return session
+        except Exception as e:
+            print(f"Session load error: {e}")
+        finally:
+            conn.close()
+    return None
+
 def get_session(session_id: str):
-    return sessions.get(session_id)
+    # Check memory first (fast), then DB (persistent)
+    session = sessions.get(session_id)
+    if not session:
+        session = _load_session_from_db(session_id)
+    return session
 
 def create_session(session_id: str):
-    sessions[session_id] = ChatbotSession(session_id)
-    return sessions[session_id]
+    session = ChatbotSession(session_id)
+    sessions[session_id] = session
+    _save_session_to_db(session)
+    return session
     
 def save_conversation(session_id: str, user_msg: str, bot_msg: str, state: str, escalate: bool):
     conn = get_db_connection()

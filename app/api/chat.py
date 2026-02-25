@@ -6,7 +6,7 @@ from app.services.chat_service import (
     handle_escalation, handle_escalated_conversation,
     initialize_session_with_user, handle_location_collection,
     handle_safety_assessment, handle_issue_identification,
-    handle_service_routing, save_conversation
+    handle_service_routing, save_conversation, _save_session_to_db
 )
 from app.core.ai import (
     generate_ai_response, get_unified_response
@@ -143,5 +143,6 @@ async def process_message(req: MessageRequest, payload: dict = Depends(verify_to
     # Save and update history
     save_conversation(session_id, user_input, response.get('message', ''), session.state, response.get('should_escalate', False))
     session.add_message("assistant", response.get('message', ''))
+    _save_session_to_db(session)  # Persist session to DB
     
     return response
