@@ -125,10 +125,18 @@ async def process_message(req: MessageRequest, payload: dict = Depends(verify_to
     if final_analysis.get("escalation") and session.state != "ESCALATED":
         return handle_escalation(session, final_analysis["escalation"])
 
+    # State-based options (per 1Charge Escalation Flow)
+    state_options = {
+        "AWAITING_LOCATION": ["Share GPS Location", "Type Address"],
+        "AWAITING_SAFETY_CHECK": ["Yes, I am safe", "No, I need help"],
+        "AWAITING_ISSUE_TYPE": ["Engine not starting", "Flat tyre", "Battery issue", "Overheating", "Accident / collision", "Other (describe)"],
+        "AWAITING_SERVICE_PREFERENCE": ["On-Spot Repair", "Towing Assistance"],
+    }
+
     response = {
         "message": final_analysis.get("message"),
         "state": session.state,
-        "options": ["Share GPS Location", "Type Address"] if session.state == "AWAITING_LOCATION" else None,
+        "options": state_options.get(session.state),
         "request_id": session.collected_data.get("request_id")
     }
 
