@@ -41,20 +41,6 @@ async def process_message(req: ChatMessageRequest):
             req.phone, 
             req.vehicle_model
         )
-        
-        # We also run a quick AI check to see if they started with a location or crisis
-        analysis = get_unified_response(user_input, "INITIAL", [], {}, None)
-        
-        # If no Crisis and no Location extracted, just give the Welcome persona
-        if not analysis.get("escalation") and not analysis.get("extracted", {}).get("location"):
-            session.add_message("user", user_input)
-            session.add_message("assistant", init_res["message"])
-            _save_session_to_db(session)
-            save_conversation(session_id, user_input, init_res["message"], session.state, False)
-            return init_res
-        
-        # If there IS a crisis or location, we continue through the normal pipeline below
-
     session.add_message("user", user_input)
     
     # 2. Analyze intent
@@ -63,7 +49,7 @@ async def process_message(req: ChatMessageRequest):
         state=session.state,
         history=session.conversation_history,
         collected_data=session.collected_data,
-        logic_guidance=None
+        logic_guidance="This is a new session, please greet the user." if new_session else None
     )
 
     # 3. CRISIS INTERCEPTOR (Priority 1)
@@ -128,12 +114,16 @@ async def process_message(req: ChatMessageRequest):
         }
 
     # Final Bot Message (AI translates logic output)
+    guidance = res.get("message", "")
+    if new_session:
+        guidance = f"WELCOME_GREETING + {guidance}"
+
     final_analysis = get_unified_response(
         user_input=user_input,
         state=session.state,
         history=session.conversation_history,
         collected_data=session.collected_data,
-        logic_guidance=res.get("message")
+        logic_guidance=guidance
     )
     
     # Handle AI-detected Escalation
