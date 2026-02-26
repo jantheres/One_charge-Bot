@@ -159,7 +159,7 @@
     <div id="empty-state">✅ No pending escalations. Good job!</div>
 
     <script>
-        const API_URL = 'http://localhost:8000/api/agent/escalations';
+        const API_URL = 'https://web-production-cabb.up.railway.app/api/agent/escalations';
 
         async function fetchEscalations() {
             try {
@@ -248,7 +248,7 @@
             if (!confirm('Are you sure you want to mark this ticket as resolved?')) return;
 
             try {
-                const res = await fetch(`http://localhost:8000/api/agent/ticket/${id}/status?source=${source}`, {
+                const res = await fetch(`https://web-production-cabb.up.railway.app/api/agent/ticket/${id}/status?source=${source}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'RESOLVED' })

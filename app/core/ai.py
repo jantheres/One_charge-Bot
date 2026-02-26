@@ -1,5 +1,6 @@
 
 from openai import OpenAI
+import httpx
 from app.core.config import settings
 import logging
 import json
@@ -18,7 +19,12 @@ if not sanitized_key:
     client_error = "OPENAI_API_KEY is empty or missing"
 else:
     try:
-        client = OpenAI(api_key=sanitized_key)
+        # We explicitly use a fresh httpx client without proxies to avoid 
+        # Railway's internal proxy environment variables causing crashes.
+        client = OpenAI(
+            api_key=sanitized_key,
+            http_client=httpx.Client(proxies={})
+        )
         logger.info("OpenAI client initialized successfully")
     except Exception as e:
         client = None
