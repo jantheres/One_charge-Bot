@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -10,12 +10,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 1 day
 
-    # Database (Aligned with Railway Defaults)
-    DB_HOST: str = Field(default="localhost", alias="MYSQLHOST")
-    DB_USER: str = Field(default="root", alias="MYSQLUSER")
-    DB_PASSWORD: str = Field(default="", alias="MYSQLPASSWORD")
-    DB_NAME: str = Field(default="breakdown_db", alias="MYSQLDATABASE")
-    DB_PORT: int = Field(default=3306, alias="MYSQLPORT")
+    # Database (Bulletproof Railway + Standard Aliases)
+    DB_HOST: str = Field(default="localhost", validation_alias=AliasChoices("MYSQLHOST", "DB_HOST", "DATABASE_HOST"))
+    DB_USER: str = Field(default="root", validation_alias=AliasChoices("MYSQLUSER", "DB_USER", "DATABASE_USER"))
+    DB_PASSWORD: str = Field(default="", validation_alias=AliasChoices("MYSQLPASSWORD", "MYSQL_ROOT_PASSWORD", "DB_PASSWORD", "DATABASE_PASSWORD"))
+    DB_NAME: str = Field(default="breakdown_db", validation_alias=AliasChoices("MYSQLDATABASE", "MYSQL_DATABASE", "DB_NAME", "DATABASE_NAME"))
+    DB_PORT: int = Field(default=3306, validation_alias=AliasChoices("MYSQLPORT", "DB_PORT", "DATABASE_PORT"))
 
     # OpenAI
     OPENAI_API_KEY: str = Field(default="", alias="OPENAI_API_KEY", validation_alias="OPENAI_API_KEY")
