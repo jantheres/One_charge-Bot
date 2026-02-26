@@ -21,7 +21,12 @@ def get_unified_response(user_input: str, state: str, history: list, collected_d
     Processes everything (Analysis + Response) in ONE single call.
     """
     if not client:
-        return {"message": "I am here to help.", "intent": "FLOW", "escalation": None, "extracted": {}}
+        return {
+            "message": "Welcome to 1Charge! I'm your AI concierge. I'm having trouble connecting to my central brain, but I can still help. What is your current location?", 
+            "intent": "FLOW", 
+            "escalation": None, 
+            "extracted": {}
+        }
 
     messages = [
         {"role": "system", "content": f"""
@@ -60,7 +65,12 @@ def get_unified_response(user_input: str, state: str, history: list, collected_d
         return json.loads(response.choices[0].message.content)
     except Exception as e:
         logger.error(f"Unified Engine Error: {e}")
-        return {"message": "We're here for you. What's your location?", "intent": "FLOW", "escalation": None, "extracted": {}}
+        return {
+            "message": "I'm here to assist you. To get started, could you please tell me your exact location?", 
+            "intent": "FLOW", 
+            "escalation": None, 
+            "extracted": {}
+        }
 
 def generate_ai_response(user_input: str, history: list = None):
     """

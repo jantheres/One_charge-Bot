@@ -132,17 +132,8 @@ def handle_location_collection(session: ChatbotSession, user_input: str, msg_typ
         return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
     
     # AI extracted a location - use it
-    if verified_location:
+    if verified_location and len(verified_location) > 3:
         session.collected_data['location'] = verified_location
-        session.collected_data['location_type'] = 'ADDRESS'
-        session.update_state("AWAITING_SAFETY_CHECK")
-        return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}
-    
-    # Text input - accept if it looks like a real location (3+ chars, not just greetings)
-    greetings = ["hi", "hello", "hey", "help", "yes", "no", "ok"]
-    cleaned = user_input.strip().lower()
-    if len(cleaned) >= 3 and cleaned not in greetings:
-        session.collected_data['location'] = user_input.strip()
         session.collected_data['location_type'] = 'ADDRESS'
         session.update_state("AWAITING_SAFETY_CHECK")
         return {"success": True, "message": "Location recorded. Are you in a safe spot away from traffic?"}

@@ -41,13 +41,19 @@ async def process_message(req: ChatMessageRequest):
             req.phone, 
             req.vehicle_model
         )
-        # If the user just said "Hi" or something generic, we give the welcome message
-        # But if they typed a location immediately, we might want to skip welcome and process
-        if user_input.lower() in ["hi", "hello", "hey", "start"]:
+        
+        # We also run a quick AI check to see if they started with a location or crisis
+        analysis = get_unified_response(user_input, "INITIAL", [], {}, None)
+        
+        # If no Crisis and no Location extracted, just give the Welcome persona
+        if not analysis.get("escalation") and not analysis.get("extracted", {}).get("location"):
             session.add_message("user", user_input)
             session.add_message("assistant", init_res["message"])
+            _save_session_to_db(session)
             save_conversation(session_id, user_input, init_res["message"], session.state, False)
             return init_res
+        
+        # If there IS a crisis or location, we continue through the normal pipeline below
 
     session.add_message("user", user_input)
     
