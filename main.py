@@ -28,7 +28,7 @@ async def health():
     return {
         "status": "online",
         "ai_client_active": client is not None,
-        "ai_client_error": client_error,
+        "ai_client_error": str(client_error) if client_error else "No Error Logged",
         "openai_key_configured": bool(settings.OPENAI_API_KEY),
         "openai_key_preview": f"{settings.OPENAI_API_KEY[:6]}...{settings.OPENAI_API_KEY[-4:]}" if settings.OPENAI_API_KEY else "MISSING",
         "database_connected": db_ok,
