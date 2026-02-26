@@ -59,6 +59,18 @@ CREATE TABLE IF NOT EXISTS escalations (
     INDEX idx_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Chat sessions table (session persistence)
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(100) UNIQUE NOT NULL,
+    state VARCHAR(50) NOT NULL,
+    collected_data JSON,
+    conversation_history JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_session_id (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Insert sample customers for testing
 INSERT INTO customers (id, name, phone, email, vehicle_model, vehicle_variant, registration_number) VALUES
 (1, 'Test User', '9876543210', 'test@example.com', 'Maruti Swift', 'VXI', 'KA01AB1234'),
