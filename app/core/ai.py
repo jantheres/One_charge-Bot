@@ -6,12 +6,16 @@ import json
 
 logger = logging.getLogger(__name__)
 
-if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "":
+# Sanitize the key (strip whitespace and common quotes if accidentally included)
+raw_key = settings.OPENAI_API_KEY or ""
+sanitized_key = raw_key.strip().strip("'").strip('"')
+
+if not sanitized_key:
     logger.warning("OPENAI_API_KEY is empty or missing")
     client = None
 else:
     try:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        client = OpenAI(api_key=sanitized_key)
         logger.info("OpenAI client initialized successfully")
     except Exception as e:
         client = None
