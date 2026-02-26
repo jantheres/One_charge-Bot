@@ -159,7 +159,7 @@
     <div id="empty-state">✅ No pending escalations. Good job!</div>
 
     <script>
-        const API_URL = 'https://web-production-54b15.up.railway.app/api/agent/escalations';
+        const API_URL = 'http://localhost:8000/api/agent/escalations';
 
         async function fetchEscalations() {
             try {
@@ -189,50 +189,31 @@
                 // Determine priority style and badge
                 let priorityClass = '';
                 let badgeClass = 'bg-blue';
-                const reason = esc.type || esc.reason || 'UNKNOWN'; // Normalized field
+                const reason = (esc.reason || esc.type || 'Standard').toUpperCase();
                 const source = esc.source || 'ESCALATION';
 
                 if (source === 'ESCALATION') {
-                    if (reason.includes('ACCIDENT') || reason.includes('UNSAFE')) {
+                    if (reason.includes('ACCIDENT') || reason.includes('DANGER') || reason.includes('CRISIS') || reason.includes('UNSAFE')) {
                         priorityClass = 'high-priority';
                         badgeClass = 'bg-red';
-                    } else if (reason.includes('EMOTIONAL')) {
-                        priorityClass = 'medium-priority';
-                        badgeClass = 'bg-yellow';
                     } else {
-                        priorityClass = 'medium-priority'; // Default escalation is medium
+                        priorityClass = 'medium-priority';
                         badgeClass = 'bg-yellow';
                     }
                 } else {
-                    // Service Requests (Standard)
-                    priorityClass = ''; // Default style (Blue/Green border)
+                    priorityClass = '';
                     badgeClass = 'bg-blue';
                 }
 
-                // Parse collected data safely
+                const sessionDetails = esc.collected_data || {};
                 let locationHtml = '<span style="color: grey;">Unknown</span>';
-                let sessionDetails = esc.collected_data || {};
 
-                if (typeof sessionDetails === 'string') {
-                    try { sessionDetails = JSON.parse(sessionDetails); } catch (e) { }
-                }
-
-                // Handle different location structures
-                let loc = sessionDetails.location || sessionDetails.location_description;
-                if (!loc && sessionDetails.latitude) {
-                    loc = `${sessionDetails.latitude}, ${sessionDetails.longitude}`;
-                }
-
+                // Handle location display
+                let loc = sessionDetails.location || sessionDetails.address || sessionDetails.location_description;
                 if (loc) {
-                    // Clean "GPS:" prefix if generic text field contained it
                     let cleanLoc = loc.toString().replace(/gps:/i, '').trim();
-
-                    if (sessionDetails.location_type === 'GPS' ||
-                        sessionDetails.location_type === 'GPS_RAW' ||
-                        (sessionDetails.latitude && sessionDetails.longitude) ||
-                        /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(cleanLoc)) { // Regex check for coordinates
-
-                        locationHtml = `<a href="https://www.google.com/maps?q=${cleanLoc}" target="_blank" style="text-decoration: none; color: #007bff;">📍 View on Map</a>`;
+                    if (sessionDetails.location_type === 'GPS' || /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(cleanLoc)) {
+                        locationHtml = `<a href="https://www.google.com/maps?q=${cleanLoc}" target="_blank" style="text-decoration: none; color: #007bff; font-weight: bold;">📍 View Live Map</a>`;
                     } else {
                         locationHtml = `🏠 ${loc}`;
                     }
@@ -243,15 +224,17 @@
                 card.className = `card ${priorityClass}`;
                 card.innerHTML = `
                     <div class="card-header">
-                        <strong>#${esc.id}</strong>
+                        <strong>ID: #${esc.id}</strong>
                         <span class="badge ${badgeClass}">${reason}</span>
                     </div>
                     <div class="card-body">
-                        <div class="detail-row"><span class="detail-label">Type:</span> <b>${source}</b></div>
-                        <div class="detail-row"><span class="detail-label">Time:</span> ${time}</div>
-                        <div class="detail-row"><span class="detail-label">Customer:</span> ${esc.customer_name || 'Guest'} (${esc.phone || 'N/A'})</div>
+                        <div class="detail-row"><span class="detail-label">Source:</span> <b>${source}</b></div>
+                        <div class="detail-row"><span class="detail-label">Status:</span> <b style="color: #28a745;">${esc.status}</b></div>
+                        <div class="detail-row"><span class="detail-label">Customer:</span> ${esc.customer_name || 'Guest'}</div>
+                        <div class="detail-row"><span class="detail-label">Phone:</span> ${esc.phone || 'N/A'}</div>
                         <div class="detail-row"><span class="detail-label">Vehicle:</span> ${esc.vehicle_model || 'Unknown'}</div>
                         <div class="detail-row"><span class="detail-label">Location:</span> ${locationHtml}</div>
+                        <div class="detail-row"><span class="detail-label">Created:</span> ${time}</div>
                     </div>
                     <div class="actions">
                         <button class="resolve-btn" onclick="resolveTicket(${esc.id}, '${source}')">✅ Mark Resolved</button>
@@ -265,14 +248,18 @@
             if (!confirm('Are you sure you want to mark this ticket as resolved?')) return;
 
             try {
-                await fetch(`https://web-production-54b15.up.railway.app/api/agent/ticket/${id}/status?source=${source}`, {
+                const res = await fetch(`http://localhost:8000/api/agent/ticket/${id}/status?source=${source}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'RESOLVED' })
                 });
-                fetchEscalations(); // Reload
+                if (res.ok) {
+                    fetchEscalations();
+                } else {
+                    alert('Failed to update ticket status.');
+                }
             } catch (error) {
-                alert('Error resolving ticket: ' + error.message);
+                alert('Connection error: ' + error.message);
             }
         }
 

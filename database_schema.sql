@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS escalations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Insert sample customers for testing
-INSERT INTO customers (name, phone, email, vehicle_model, vehicle_variant, registration_number) VALUES
-('Test User', '9876543210', 'test@example.com', 'Maruti Swift', 'VXI', 'KA01AB1234'),
-('Demo User', '9876543211', 'demo@example.com', 'Hyundai i20', 'Asta', 'KA02CD5678');   
+INSERT INTO customers (id, name, phone, email, vehicle_model, vehicle_variant, registration_number) VALUES
+(1, 'Test User', '9876543210', 'test@example.com', 'Maruti Swift', 'VXI', 'KA01AB1234'),
+(2, 'Demo User', '9876543211', 'demo@example.com', 'Hyundai i20', 'Asta', 'KA02CD5678'),
+(12345, 'John Doe', '9876543212', 'john@example.com', 'Tesla Model 3', 'Long Range', 'KA05MS007');

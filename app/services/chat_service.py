@@ -106,16 +106,18 @@ def save_conversation(session_id: str, user_msg: str, bot_msg: str, state: str, 
 
 # --- Handler Logic (State Machine) ---
 
-def initialize_session_with_user(session: ChatbotSession, user_id: int, user_name: str):
+def initialize_session_with_user(session: ChatbotSession, user_id: int, user_name: str, phone: str, vehicle: str = ""):
     """
-    Initialize session.
+    Initialize session with user profile data from host application.
     """
     session.collected_data['customer_id'] = user_id
     session.collected_data['name'] = user_name
+    session.collected_data['phone'] = phone
+    session.collected_data['vehicle_model'] = vehicle
     session.update_state("AWAITING_LOCATION")
     
     return {
-        "message": "Welcome to 1Charge — your roadside assistance partner. I'm here to ensure you get back on the road safely and quickly. To start, could you please share your current location or type your address?",
+        "message": f"Welcome back, {user_name}! We've received your request. I'm here to ensure you get back on the road safely. To start, could you please share your current location or type your address?",
         "state": "AWAITING_LOCATION",
         "options": ["Share GPS Location", "Type Address"]
     }
@@ -151,11 +153,6 @@ def handle_location_collection(session: ChatbotSession, user_input: str, msg_typ
 def handle_safety_assessment(session: ChatbotSession, user_input: str):
     user_input_lower = user_input.lower()
     
-    # Check for danger/unsafe signs
-    if any(word in user_input_lower for word in ["danger", "not safe", "unsafe", "no", "help", "risk"]):
-        # The document emphasizes Safety Check as the priority
-        return handle_escalation(session, "UNSAFE_LOCATION")
-        
     if any(word in user_input_lower for word in ["yes", "safe", "ok", "fine", "yeah", "with the vehicle"]):
         session.collected_data['safe_status'] = "SAFE"
         session.update_state("AWAITING_ISSUE_TYPE")
@@ -165,6 +162,10 @@ def handle_safety_assessment(session: ChatbotSession, user_input: str):
             "options": ["Engine not starting", "Flat tyre", "Battery issue", "Overheating", "Accident / collision", "Other (describe)"]
         }
     
+    # Check for "no" or "unsafe" specifically in this state
+    if any(word in user_input_lower for word in ["no", "unsafe", "not safe", "help"]):
+        return handle_escalation(session, "UNSAFE_LOCATION")
+
     # If ambiguous, ask again
     return {
         "message": "I want to ensure you are safe before we proceed. Are you in a safe location away from oncoming traffic?",
@@ -175,10 +176,6 @@ def handle_safety_assessment(session: ChatbotSession, user_input: str):
 def handle_issue_identification(session: ChatbotSession, user_input: str):
     issue = user_input
     session.collected_data['issue'] = issue
-    
-    # Crisis detection causes immediate escalation as per "When Human Touch is Needed"
-    if any(word in issue.lower() for word in ["accident", "collision", "crash", "hit"]):
-        return handle_escalation(session, "ACCIDENT")
         
     session.update_state("AWAITING_SERVICE_PREFERENCE")
     return {
@@ -226,18 +223,23 @@ def handle_escalated_conversation(session: ChatbotSession, user_input: str):
 def handle_escalation(session: ChatbotSession, reason: str):
     session.update_state("ESCALATED")
     
-    TicketService.create_escalation(
+    ticket_id = TicketService.create_escalation(
         session.collected_data.get('customer_id'),
         session.session_id,
         reason,
         session.collected_data,
     )
     
+    req_id = f"ESC-{ticket_id}" if ticket_id else "ESC-TEMP"
+    session.collected_data['request_id'] = req_id
+    session.collected_data['escalation_reason'] = reason
+    
     return {
         "message": "🚨 <b>[System]</b> Escalating to Priority Support...<br><br><b>[Agent Sarah Connected]</b><br>I have prioritized your case. I see you reported an emergency. <br><b>Can you tell me more about your situation? Are you safe?</b>",
         "state": "ESCALATED",
         "should_escalate": True,
         "escalation_reason": reason,
+        "request_id": req_id,
         "priority": "HIGH",
         "collected_data": session.collected_data
     }

@@ -91,10 +91,11 @@
 
 <body>
     <div class="container">
-        <h1>🤖 1Charge Chatbot - Working Demo</h1>
+        <h1>🤖 1Charge Chatbot - Integrated Demo</h1>
         <div class="info">
-            <strong>✅ Backend Status:</strong> Connected to https://web-production-54b15.up.railway.app<br>
-            <strong>Session ID:</strong> <span id="sessionId">Not started</span>
+            <strong>✅ Mode:</strong> Integrated / Pre-Authenticated<br>
+            <strong>User ID:</strong> <span id="userIdDisplay">12345</span> |
+            <strong>Name:</strong> <span id="userNameDisplay">John Doe</span>
         </div>
 
         <div id="chat"></div>
@@ -105,124 +106,67 @@
             <button onclick="sendMessage()">Send</button>
         </div>
         <div style="margin-top: 10px; display: flex; gap: 10px;">
-            <button onclick="startChat()" style="width: 50%;">Start New Chat</button>
-            <button onclick="shareGPS()" style="width: 50%; background: #28a745;">📍 Share GPS</button>
+            <button onclick="shareGPS()" style="width: 100%; background: #28a745;">📍 Share GPS Location</button>
         </div>
     </div>
 
     <script>
-        let sessionId = null;
-        let authToken = null; // No longer required for chat
-        const CHATBOT_URL = 'https://web-production-54b15.up.railway.app/api';
+        // Mocking data from the host application session
+        const USER_PROFILE = {
+            user_id: 12345,
+            name: "John Doe",
+            phone: "9876543210",
+            vehicle_model: "Tesla Model 3"
+        };
+
+        const CHATBOT_URL = 'http://localhost:8000/api';
 
         function addMessage(text, type) {
             const chat = document.getElementById('chat');
             const msg = document.createElement('div');
             msg.className = `message ${type}`;
-            msg.innerHTML = text; // Allow HTML rendering
+            msg.innerHTML = text;
             chat.appendChild(msg);
             chat.scrollTop = chat.scrollHeight;
         }
-
-        async function startChat() {
-            try {
-                addMessage('Starting new session...', 'system');
-                // Note: /start is now SECURED
-                const response = await fetch(`${CHATBOT_URL}/chatbot/start`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-
-                if (data.session_id) {
-                    sessionId = data.session_id;
-                    document.getElementById('sessionId').textContent = sessionId;
-                    addMessage(data.message, 'bot');
-                    addMessage('✅ Chat started! You can now send messages.', 'system');
-                } else {
-                    addMessage('❌ Error: ' + (data.error || 'Unknown error'), 'system');
-                }
-            } catch (error) {
-                addMessage('❌ Connection error: ' + error.message, 'system');
-            }
-        }
-
-        let isAgentActive = false;
 
         async function sendMessage() {
             const input = document.getElementById('input');
             const message = input.value.trim();
             if (!message) return;
 
-            if (!sessionId) {
-                addMessage('⚠️ Please start a chat first!', 'system');
-                return;
-            }
-
             addMessage(message, 'user');
             input.value = '';
 
-            // If connected to human agent, allow backend to handle response (AI Agent)
-            // if (isAgentActive) { ... } REMOVED to allow backend AI.
-
             try {
+                const payload = {
+                    ...USER_PROFILE,
+                    message: message,
+                    message_type: 'text'
+                };
+
                 const response = await fetch(`${CHATBOT_URL}/chatbot/message`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ session_id: sessionId, message: message })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
+
                 const data = await response.json();
 
-                if (data.error && !data.message) {
-                    addMessage('❌ Error: ' + data.error, 'system');
-                } else {
-                    if (data.message) {
-                        addMessage(data.message, 'bot');
-                    }
+                if (data.message) {
+                    addMessage(data.message, 'bot');
+                }
 
-                    if (data.options && data.options.length > 0) {
-                        const optionsDiv = document.createElement('div');
-                        optionsDiv.style.textAlign = 'center';
-                        optionsDiv.style.marginTop = '10px';
+                if (data.options && data.options.length > 0) {
+                    renderOptions(data.options);
+                }
 
-                        data.options.forEach(option => {
-                            const btn = document.createElement('button');
-                            btn.textContent = option;
-                            btn.style.margin = '5px';
-                            btn.style.padding = '8px 15px';
-                            btn.style.background = '#f0f0f0';
-                            btn.style.border = '1px solid #ccc';
-                            btn.style.borderRadius = '20px';
-                            btn.style.cursor = 'pointer';
-                            btn.style.color = '#333';
+                if (data.request_id) {
+                    addMessage('✅ Service request created: ' + data.request_id, 'system');
+                }
 
-                            btn.onclick = () => {
-                                if (option === 'Share GPS Location' || option.includes('GPS')) {
-                                    shareGPS();
-                                } else {
-                                    document.getElementById('input').value = option;
-                                    sendMessage();
-                                }
-                            };
-
-                            optionsDiv.appendChild(btn);
-                        });
-
-                        document.getElementById('chat').appendChild(optionsDiv);
-                        document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
-                    }
-
-                    if (data.request_id) {
-                        addMessage('✅ Service request created: ' + data.request_id, 'system');
-                    }
-                    if (data.should_escalate) {
-                        // The backend already provides the "Agent Connected" message in data.message
-                        // Just ensure we note the state change visually if needed
-                        addMessage('⚠️ PRIORITY ALERT TRIGGERED', 'system');
-                        // Backend message is already displayed above (lines 217-219)
-                    }
+                if (data.should_escalate) {
+                    addMessage('⚠️ PRIORITY ALERT TRIGGERED - AI Agent Connected', 'system');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -230,14 +174,38 @@
             }
         }
 
-        // Removed connectToAgent simulation function as backend handles it now.
+        function renderOptions(options) {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.style.textAlign = 'center';
+            optionsDiv.style.marginTop = '10px';
+
+            options.forEach(option => {
+                const btn = document.createElement('button');
+                btn.textContent = option;
+                btn.style.margin = '5px';
+                btn.style.padding = '8px 15px';
+                btn.style.background = '#f0f0f0';
+                btn.style.border = '1px solid #ccc';
+                btn.style.borderRadius = '20px';
+                btn.style.cursor = 'pointer';
+                btn.style.color = '#333';
+
+                btn.onclick = () => {
+                    if (option === 'Share GPS Location' || option.includes('GPS')) {
+                        shareGPS();
+                    } else {
+                        document.getElementById('input').value = option;
+                        sendMessage();
+                    }
+                };
+                optionsDiv.appendChild(btn);
+            });
+
+            document.getElementById('chat').appendChild(optionsDiv);
+            document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+        }
 
         async function shareGPS() {
-            if (!sessionId) {
-                addMessage('⚠️ Please start a chat first!', 'system');
-                return;
-            }
-
             if (!navigator.geolocation) {
                 addMessage('❌ GPS not supported by your browser', 'system');
                 return;
@@ -249,34 +217,27 @@
                 async (position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-
                     const locationMessage = `GPS: ${lat}, ${lon}`;
+
                     addMessage(locationMessage, 'user');
 
                     try {
+                        const payload = {
+                            ...USER_PROFILE,
+                            message: locationMessage,
+                            message_type: 'gps',
+                            location: { latitude: lat, longitude: lon }
+                        };
+
                         const response = await fetch(`${CHATBOT_URL}/chatbot/message`, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': 'Bearer ' + authToken
-                            },
-                            body: JSON.stringify({
-                                session_id: sessionId,
-                                message: locationMessage,
-                                message_type: 'gps',
-                                location: { latitude: lat, longitude: lon, accuracy: accuracy }
-                            })
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
                         });
                         const data = await response.json();
 
-                        if (data.error) {
-                            addMessage('❌ Error: ' + data.error, 'system');
-                        } else {
+                        if (data.message) {
                             addMessage(data.message, 'bot');
-                            if (data.request_id) {
-                                addMessage('✅ Service request created: ' + data.request_id, 'system');
-                            }
                         }
                     } catch (error) {
                         addMessage('❌ Error: ' + error.message, 'system');
@@ -288,9 +249,10 @@
             );
         }
 
-        // Auto-start on page load
         window.onload = () => {
-            addMessage('Welcome! Click "Start New Chat" to begin.', 'system');
+            document.getElementById('userIdDisplay').textContent = USER_PROFILE.user_id;
+            document.getElementById('userNameDisplay').textContent = USER_PROFILE.name;
+            addMessage('Welcome! I see you are logged in as ' + USER_PROFILE.name + '. How can I assist you with your ' + USER_PROFILE.vehicle_model + ' today?', 'bot');
         };
     </script>
 </body>

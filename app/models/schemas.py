@@ -1,27 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 
-class LoginRequest(BaseModel):
+class ChatMessageRequest(BaseModel):
+    user_id: int
+    name: str
     phone: str
-
-class MessageRequest(BaseModel):
-    session_id: str
+    vehicle_model: Optional[str] = ""
     message: str
-    message_type: Optional[str] = "text"
+    message_type: Optional[str] = "text" # 'text' (default) or 'gps'
     location: Optional[Dict] = None
 
 class StatusUpdate(BaseModel):
     status: str
-    
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class StartResponse(BaseModel):
-    session_id: str
-    message: str
-    state: str
-    options: Optional[List[str]] = None
 
 class ChatResponse(BaseModel):
     message: str

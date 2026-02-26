@@ -32,7 +32,9 @@ class TicketService:
     @staticmethod
     def create_escalation(customer_id: int, session_id: str, reason: str, collected_data: dict):
         conn = get_db_connection()
-        if not conn: return False
+        if not conn: 
+            print("DB Connection failed in create_escalation")
+            return None
         
         try:
             cursor = conn.cursor()
@@ -44,10 +46,15 @@ class TicketService:
                 session_id, customer_id, reason, json.dumps(collected_data)
             ))
             conn.commit()
-            return True
+            ticket_id = cursor.lastrowid
+            cursor.close()
+            return ticket_id
         except Exception as e:
-            print(f"Error creating escalation: {e}")
-            return False
+            print(f"CRITICAL: Escalation Insert Failed: {e}")
+            # Identify if it's a foreign key error
+            if "Foreign key constraint fails" in str(e):
+                print(f"HINT: User ID {customer_id} does not exist in 'customers' table. Escalation requires a valid customer_id.")
+            return None
         finally:
             if conn: conn.close()
 
