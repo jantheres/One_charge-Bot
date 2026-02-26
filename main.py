@@ -13,7 +13,7 @@ app = FastAPI(title=settings.PROJECT_NAME)
 @app.get("/health", tags=["Root"])
 async def health():
     from app.db.connection import get_db_connection
-    from app.core.ai import client
+    from app.core.ai import client, client_error
     
     db_ok = False
     db_error = None
@@ -28,6 +28,7 @@ async def health():
     return {
         "status": "online",
         "ai_client_active": client is not None,
+        "ai_client_error": client_error,
         "openai_key_configured": bool(settings.OPENAI_API_KEY),
         "openai_key_preview": f"{settings.OPENAI_API_KEY[:6]}...{settings.OPENAI_API_KEY[-4:]}" if settings.OPENAI_API_KEY else "MISSING",
         "database_connected": db_ok,
