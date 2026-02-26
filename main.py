@@ -10,9 +10,22 @@ from app.api.agent import router as agent_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-@app.get("/", tags=["Root"])
-async def root():
-    return {"message": "Welcome to the 1Charge Chatbot API. Visit /docs for documentation."}
+@app.get("/health", tags=["Root"])
+async def health():
+    from app.db.connection import get_db_connection
+    db_ok = False
+    conn = get_db_connection()
+    if conn:
+        db_ok = True
+        conn.close()
+    
+    return {
+        "status": "online",
+        "openai_key_configured": bool(settings.OPENAI_API_KEY),
+        "openai_key_preview": f"{settings.OPENAI_API_KEY[:5]}...{settings.OPENAI_API_KEY[-5:]}" if settings.OPENAI_API_KEY else "MISSING",
+        "database_connected": db_ok,
+        "db_host": settings.DB_HOST
+    }
 
 app.add_middleware(
     CORSMiddleware,
