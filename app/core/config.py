@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     DB_PORT: int = Field(default=3306, alias="MYSQLPORT")
 
     # OpenAI
-    OPENAI_API_KEY: str = ""
+    OPENAI_API_KEY: str = Field(default="", alias="OPENAI_API_KEY", validation_alias="OPENAI_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env", 

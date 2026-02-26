@@ -6,14 +6,16 @@ import json
 
 logger = logging.getLogger(__name__)
 
-if not settings.OPENAI_API_KEY:
-    logger.warning("OPENAI_API_KEY not found in env")
-
-try:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-except Exception as e:
+if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "":
+    logger.warning("OPENAI_API_KEY is empty or missing")
     client = None
-    logger.error(f"Failed to init OpenAI: {e}")
+else:
+    try:
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        logger.info("OpenAI client initialized successfully")
+    except Exception as e:
+        client = None
+        logger.error(f"Failed to init OpenAI: {e}")
 
 def get_unified_response(user_input: str, state: str, history: list, collected_data: dict, logic_guidance: str = None):
     """
