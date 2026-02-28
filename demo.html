@@ -106,20 +106,29 @@
             <button onclick="sendMessage()">Send</button>
         </div>
         <div style="margin-top: 10px; display: flex; gap: 10px;">
-            <button onclick="shareGPS()" style="width: 100%; background: #28a745;">📍 Share GPS Location</button>
+            <button onclick="shareGPS()" style="width: 70%; background: #28a745;">📍 Share GPS Location</button>
+            <button onclick="resetSession()" style="width: 30%; background: #dc3545;">🔄 Reset Session</button>
         </div>
     </div>
 
     <script>
+        function resetSession() {
+            USER_PROFILE.user_id = "user_" + Math.floor(Math.random() * 1000000);
+            window.alreadyEscalated = false; // Reset escalation flag
+            document.getElementById('userIdDisplay').textContent = USER_PROFILE.user_id;
+            document.getElementById('chat').innerHTML = '';
+            addMessage('Welcome! I see you are logged in as ' + USER_PROFILE.name + '. How can I assist you with your ' + USER_PROFILE.vehicle_model + ' today?', 'bot');
+            console.log("Session reset to new User ID:", USER_PROFILE.user_id);
+        }
         // Mocking data from the host application session
         const USER_PROFILE = {
-            user_id: 12345,
+            user_id: "user_" + Math.floor(Math.random() * 1000000),
             name: "John Doe",
             phone: "9876543210",
             vehicle_model: "Tesla Model 3"
         };
 
-        const URL = 'https://web-production-cabb.up.railway.app/api/chatbot/message';
+        const CHATBOT_URL = 'http://127.0.0.1:8000/api/chatbot/message';
 
         function addMessage(text, type) {
             const chat = document.getElementById('chat');
@@ -140,14 +149,19 @@
 
             try {
                 const payload = {
-                    ...USER_PROFILE,
                     message: message,
-                    message_type: 'text'
+                    message_type: "text"
                 };
 
-                const response = await fetch(`${CHATBOT_URL}/chatbot/message`, {
+                const response = await fetch(CHATBOT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-Id': USER_PROFILE.user_id.toString(),
+                        'X-User-Name': USER_PROFILE.name,
+                        'X-User-Phone': USER_PROFILE.phone,
+                        'X-Vehicle-Model': USER_PROFILE.vehicle_model
+                    },
                     body: JSON.stringify(payload)
                 });
 
@@ -161,16 +175,20 @@
                     renderOptions(data.options);
                 }
 
-                if (data.request_id) {
-                    addMessage('✅ Service request created: ' + data.request_id, 'system');
+                // Only show system alerts for NEW escalations
+                const isNewEscalation = (data.state === 'ESCALATED' || data.should_escalate) && !window.alreadyEscalated;
+
+                if (isNewEscalation) {
+                    addMessage('⚠️ PRIORITY ALERT TRIGGERED - Human Agent Notified', 'system');
+                    window.alreadyEscalated = true; // Set flag
                 }
 
-                if (data.should_escalate) {
-                    addMessage('⚠️ PRIORITY ALERT TRIGGERED - AI Agent Connected', 'system');
+                if (isNewEscalation && data.priority && data.priority !== 'normal') {
+                    addMessage('ℹ️ (Priority detected: assistance is being arranged)', 'system');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                addMessage('❌ Error: Could not connect to chatbot', 'system');
+                addMessage('❌ Error: Could not connect to local backend (Check if uvicorn is running)', 'system');
             }
         }
 
@@ -223,21 +241,30 @@
 
                     try {
                         const payload = {
-                            ...USER_PROFILE,
                             message: locationMessage,
-                            message_type: 'gps',
+                            message_type: "gps",
                             location: { latitude: lat, longitude: lon }
                         };
 
-                        const response = await fetch(`${CHATBOT_URL}/chatbot/message`, {
+                        const response = await fetch(CHATBOT_URL, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-User-Id': USER_PROFILE.user_id.toString(),
+                                'X-User-Name': USER_PROFILE.name,
+                                'X-User-Phone': USER_PROFILE.phone,
+                                'X-Vehicle-Model': USER_PROFILE.vehicle_model
+                            },
                             body: JSON.stringify(payload)
                         });
                         const data = await response.json();
 
                         if (data.message) {
                             addMessage(data.message, 'bot');
+                        }
+
+                        if (data.options && data.options.length > 0) {
+                            renderOptions(data.options);
                         }
                     } catch (error) {
                         addMessage('❌ Error: ' + error.message, 'system');

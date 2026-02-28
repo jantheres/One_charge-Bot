@@ -13,8 +13,11 @@ A production-grade, safety-first roadside assistance platform designed for seaml
 ### 1. **Integrated & Stateless**
 The chatbot is designed to live inside an already-authenticated App or Website.
 - **Single Endpoint**: `POST /api/chatbot/message` handles everything.
-- **No Login Required**: Relies on user profile details (`user_id`, `name`, etc.) passed securely from the host application session.
-- **Auto-Initialization**: Sessions are automatically created or retrieved using the `user_id`.
+- **No Login Required**: Authentication is handled by the host application / API gateway.
+- **Trusted User Context**: The gateway injects identity/profile context via headers:
+  - `X-User-Id` (required)
+  - Optional: `X-User-Name`, `X-User-Phone`, `X-Vehicle-Model` (if omitted, the chatbot can fetch from the host app DB)
+- **Auto-Initialization**: Sessions are automatically created or retrieved using the `X-User-Id`.
 
 ### 2. **Safety-First Crisis Interceptor** 🚨
 The system prioritizes human life over bot qualification logic.
@@ -38,8 +41,8 @@ For non-emergencies, the bot follows a structured journey:
 - **OpenAI API Key** (in `.env`)
 
 ### 2. Database Setup
-1.  Run `database_schema.sql` in your MySQL manager.
-2.  Ensure you have the test user `1` in the `customers` table (included in the SQL).
+1. Run `database_schema.sql` in your MySQL manager (it creates `breakdown_db` and the runtime tables).
+2. Ensure your `.env` DB settings match your local MySQL credentials.
 
 ### 3. Run the Backend
 ```bash
@@ -53,7 +56,7 @@ Server starts at `http://localhost:8000`.
 
 ### Customer Side (`demo.html`)
 - Open `demo.html` in your browser.
-- It simulates a logged-in session for **Test User (ID: 1)**.
+- It simulates a logged-in session by sending the trusted `X-User-*` headers.
 - **Standard Flow**: Say "Hi" -> Provide Location -> "I am safe" -> "Flat Tyre".
 - **Crisis Flow**: Type "I just crashed my car!" to trigger the **Crisis Interceptor**.
 

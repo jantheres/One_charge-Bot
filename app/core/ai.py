@@ -1,142 +1,79 @@
 
-from openai import OpenAI
-import httpx
-from app.core.config import settings
-import logging
+from openai import AsyncOpenAI
 import json
+import logging
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Sanitize the key (strip whitespace and common quotes if accidentally included)
-raw_key = settings.OPENAI_API_KEY or ""
-sanitized_key = raw_key.strip().strip("'").strip('"')
+# Initialize AsyncOpenAI without custom proxies
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-client_error = None
+SYSTEM_PROMPT = """You are the 1Charge AI Roadside Assistance Concierge.
 
-if not sanitized_key:
-    logger.warning("OPENAI_API_KEY is empty or missing")
-    client = None
-    client_error = "OPENAI_API_KEY is empty or missing"
-else:
+### YOUR MISSION:
+Assist users experiencing vehicle breakdowns. Follow the 5-step journey to collect data or escalate to a human agent with full context.
+
+### THE JOURNEY:
+1. **IDENTITY**: Greet the user and collect/confirm their mobile number. Even if a number is provided in context, ask them to confirm it. If the user asks "which number", refer to the one in AUTH_CONTEXT (e.g., "The one ending in..."). Set `phone_verified` to true once they provide any valid 10+ digit number.
+2. **LOCATION COLLECTION**: Gather GPS coordinates or typed address for precise positioning.
+3. **SAFETY ASSESSMENT**: Verify vehicle location safety and **customer proximity**. Ask: "Are you safe and are you currently with the vehicle?"
+4. **ISSUE IDENTIFICATION**: Ask for the issue. MUST be one of: Engine not starting, Flat tyre, Battery issue, Overheating, Accident / collision, Other (describe).
+5. **SERVICE TYPE ROUTING**: Ask user to choose: On-Spot Repair or Towing Assistance.
+
+### ESCALATION & EMERGENCY DETECTION:
+You must detect situations requiring a human touch WITHOUT needing specific keywords like "escalate".
+Escalate IMMEDIATELY (set `next_step: "ESCALATED"` and `emergency_level: "HIGH"`) if:
+- **Life-threatening or Dangerous words**: User mentions words like "die", "dying", "hurt", "pain", "bleeding", "fire", "danger", "threat", "hospital", "ambulance", or "police".
+- **Unsafe situation**: User is in danger or feels threatened.
+- **Accident/Collision**: Any mention of a crash or impact.
+- **Emotional Distress**: User sounds highly anxious, panicked, or upset.
+- **Special Requests**: Unique needs you cannot handle.
+
+### TONE & DIALOGUE:
+- Empathetic and professional.
+- **NEVER** repeat the user's input. **ALWAYS** move to the next question once data is received.
+- If data is missing for a step, ask politely but firmly.
+
+### MANDATORY JSON OUTPUT:
+You MUST respond ONLY in valid JSON.
+{
+  "intent": "SUPPORT",
+  "emergency_level": "LOW | MEDIUM | HIGH",
+  "confidence": 0.0 to 1.0,
+  "extracted_data": {
+    "phone_verified": true | false | null,
+    "is_safe": true | false | null,
+    "is_with_vehicle": true | false | null,
+    "latitude": "number | null",
+    "longitude": "number | null",
+    "address": "string | null",
+    "location_confirmed": true | false | null,
+    "issue_category": "Engine not starting | Flat tyre | Battery issue | Overheating | Accident / collision | Other | null",
+    "service_type": "on_spot | towing | null"
+  },
+  "next_step": "IDENTITY | LOCATION | SAFETY | ISSUE | ROUTING | CONFIRMATION | ESCALATED",
+  "user_reply": "string"
+}"""
+
+async def get_ai_response(messages: list):
     try:
-        # We explicitly use a fresh httpx client without proxies to avoid 
-        # Railway's internal proxy environment variables causing crashes.
-        client = OpenAI(
-            api_key=sanitized_key,
-            http_client=httpx.Client(proxies={})
-        )
-        logger.info("OpenAI client initialized successfully")
-    except Exception as e:
-        client = None
-        client_error = str(e)
-        logger.error(f"Failed to init OpenAI: {e}")
-
-def get_unified_response(user_input: str, state: str, history: list, collected_data: dict, logic_guidance: str = None):
-    """
-    ULTRA-FAST UNIFIED BRAIN:
-    Processes everything (Analysis + Response) in ONE single call.
-    """
-    if not client:
-        return {
-            "message": "Welcome to 1Charge! I'm your AI concierge. I'm having trouble connecting to my central brain, but I can still help. What is your current location?", 
-            "intent": "FLOW", 
-            "escalation": None, 
-            "extracted": {}
-        }
-
-    messages = [
-        {"role": "system", "content": f"""
-        You are the '1Charge Elite Concierge'. PREMIUM & EFFICIENT.
-        
-        TASK:
-        1. ANALYZE: If user reports an EMERGENCY (Accident, Fire, Smoke, Major Collision, or immediate danger), set "escalation": "ACCIDENT" or "DANGER" immediately.
-        2. RESPOND: Address the current state: {state}.
-        
-        RULES:
-        - ESCALATION: If "escalation" is NOT null, your "message" should be a high-priority system alert connecting them to Sarah.
-        - ACKNOWLEDGE: If {logic_guidance} implies a successful state change, thank them.
-        - NEVER REPEAT: Don't ask for info already extracted.
-        - Tone: Premium, Elite. Max 35 words.
-        
-        RETURN JSON:
-        {{ "intent": "CHAT", "escalation": "REASON_OR_NULL", "extracted": {{}}, "message": "..." }}
-        """}
-    ]
-    
-    # Add minimal history (last 4)
-    for h in history[-4:]:
-        role = "assistant" if h["role"] == "bot" else h["role"]
-        messages.append({"role": role, "content": h["content"]})
-    
-    messages.append({"role": "user", "content": user_input})
-
-    try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
             response_format={ "type": "json_object" },
-            max_tokens=250,
+            max_tokens=500,
             temperature=0.7
         )
-        return json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        return json.loads(content)
     except Exception as e:
-        logger.error(f"Unified Engine Error: {e}")
+        logger.error(f"AI Error: {e}")
         return {
-            "message": "I'm here to assist you. To get started, could you please tell me your exact location?", 
-            "intent": "FLOW", 
-            "escalation": None, 
-            "extracted": {}
+            "intent": "ERROR",
+            "emergency_level": "HIGH",
+            "confidence": 0.0,
+            "extracted_data": {},
+            "next_step": "ESCALATED",
+            "user_reply": "I am experiencing a technical issue but I'm here to ensure your safety. Please stay away from traffic and wait while I connect you to a human agent."
         }
-
-def generate_ai_response(user_input: str, history: list = None):
-    """
-    Agent Sarah's response (Escalated state).
-    Sarah is a high-level emergency coordinator.
-    """
-    if not client:
-        return "I'm having trouble connecting to AI services."
-        
-    messages = [
-        {"role": "system", "content": """
-    YOUR PROTOCOL (THE FIRST 60 SECONDS):
-    1. GREETING & REASSURANCE: 
-       "Hi, thank you for reaching out. My name is Sarah, and I'll be assisting you from here. I understand your car has broken down — don't worry, I'm here to help."
-    2. CONFIRM IDENTITY: 
-       "Before we proceed, could you please confirm your registered mobile number or email ID?"
-    3. VERIFY DETAILS: 
-       "Thank you. Could you confirm the car model and variant? And what issue are you experiencing?"
-
-    ASSESSMENT & SOLUTION STAGE:
-    - SAFETY CHECK: "I hope you're safe. Are you currently with the vehicle? Could you confirm your exact location or share your live location?"
-    - SOLUTION OFFERING: "Here's what I can do for you immediately: arrange a technician for on-spot repair, or book a towing vehicle to the nearest authorized service center."
-
-    CLOSING THE LOOP:
-    - SET EXPECTATIONS: "I've placed your request successfully. You'll receive technician details via message shortly. They'll contact you when they're on the way."
-    - ADDITIONAL SUPPORT: "Is there anything else you need help with while you wait? I'm here to support you."
-    - PROFESSIONAL CLOSING: "Thank you for contacting us. Help is on the way — please stay safe, and feel free to reach out if you need anything else."
-    
-    MISSION:
-    Prioritize customer safety above all. Follow the steps sequentially based on what's missing in history.
-    """}
-    ]
-    
-    if history:
-        for h in history[-8:]:
-            role = "assistant" if h["role"] == "bot" else h["role"]
-            messages.append({"role": role, "content": h["content"]})
-            
-    messages.append({"role": "user", "content": user_input})
-        
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            max_tokens=150,
-            temperature=0.6
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"AI Response Error: {e}")
-        return "Stay calm. A 1Charge emergency unit is being alerted to your situation."
-
-

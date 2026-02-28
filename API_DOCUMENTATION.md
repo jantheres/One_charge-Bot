@@ -9,13 +9,15 @@ This documentation reflects the **Stateless, Pre-Authenticated Architecture**. T
 ### `POST /api/chatbot/message`
 Handle all chatbot interactions. Sessions are automatically initialized or retrieved based on the `user_id`.
 
+**Trusted Authentication Context (Headers):**
+- `X-User-Id` (Required)
+- `X-User-Name` (Optional; if omitted the chatbot can fetch from host app DB)
+- `X-User-Phone` (Optional)
+- `X-Vehicle-Model` (Optional)
+
 **Request Body:**
 ```json
 {
-  "user_id": 1,
-  "name": "John Doe",
-  "phone": "9876543210",
-  "vehicle_model": "Tesla Model 3",
   "message": "My car won't start",
   "message_type": "text",
   "location": {
@@ -26,10 +28,6 @@ Handle all chatbot interactions. Sessions are automatically initialized or retri
 ```
 
 **Fields:**
-- `user_id` (Integer, Required): Unique identifier from the host application.
-- `name` (String, Required): User's display name.
-- `phone` (String, Required): User's registered phone number.
-- `vehicle_model` (String, Required): User's vehicle for context.
 - `message` (String, Required): The user's input text or GPS string.
 - `message_type` (String): `text` or `gps`. Defaults to `text`.
 - `location` (Object, Optional): JSON object with `latitude` and `longitude`.
@@ -37,23 +35,41 @@ Handle all chatbot interactions. Sessions are automatically initialized or retri
 **Response:**
 ```json
 {
-  "message": "I'm sorry to hear that. Are you in a safe location?",
-  "state": "AWAITING_SAFETY_CHECK",
+  "session_id": "uuid",
+  "message": "I'm sorry to hear that. Are you safe right now?",
+  "state": "SAFETY",
   "options": ["Yes, I am safe", "No, I need help"],
   "should_escalate": false,
-  "request_id": null,
-  "escalation_reason": null
+  "ticket_id": null,
+  "escalation_reason": null,
+  "service_type": null,
+  "priority": null
 }
 ```
 
 ---
 
-## 🚨 Emergency Workflow (Crisis Interceptor)
-The API includes a top-level **Crisis Interceptor**. If the `message` contains keywords like *accident, crash, fire, smoke, danger* or if AI detects a high-priority intent:
-1. Standard bot prompts (Location/Safety) are bypassed.
-2. The session state immediately moves to `ESCALATED`.
-3. A ticket is created in the database.
-4. The response includes `should_escalate: true` and a valid `request_id`.
+## �️ The 5-Step Automated Journey
+
+The backend enforces a deterministic state machine. Each request advances the user through these steps:
+
+1.  **IDENTITY**: Greets the user and verifies their mobile number.
+2.  **LOCATION**: Collects GPS coordinates or a typed address.
+3.  **SAFETY & PROXIMITY**: Verifies the user is safe AND with the vehicle.
+4.  **ISSUE**: Identifies the problem (Engine, Tyre, Battery, etc.).
+5.  **ROUTING**: Identifies the service type (On-Spot vs Towing).
+
+Clients should use the `state` field in the response to determine what UI to show, and the `options` field for clickable buttons.
+
+---
+
+## 🚨 Emergency Workflow (Agent Sarah)
+
+The API includes a **Crisis Interceptor**. If the message contains emergency keywords or life-threatening distress:
+1.  Qualification steps are bypassed.
+2.  The session moves to `ESCALATED`.
+3.  **Agent Sarah** introduces herself in the `message` field.
+4.  If phone or location are missing, the response will dynamically ask for them while in the `ESCALATED` state.
 
 ---
 
@@ -61,13 +77,30 @@ The API includes a top-level **Crisis Interceptor**. If the `message` contains k
 
 ### `GET /api/agent/escalations`
 Fetch all active service requests and escalations.
-- **Statuses returned:** `OPEN`, `IN_PROGRESS`, `DISPATCHED`, `ON_SITE`.
 
-### `PATCH /api/agent/ticket/{item_id}/status`
-Update the status of a specific ticket.
-- **Valid Statuses:** `OPEN`, `IN_PROGRESS`, `DISPATCHED`, `ON_SITE`, `RESOLVED`, `CLOSED`.
+### `PATCH /api/agent/ticket/{ticket_id}/status`
+Update ticket status (e.g., to `RESOLVED` or `DISPATCHED`).
+
+---
+
+## 🧑‍💼 Explicit Escalation
+
+### `POST /api/chatbot/escalate`
+Force escalation for an existing session (e.g., user taps a "Talk to agent" button).
+
+**Headers:** Same trusted `X-User-*` headers as `/api/chatbot/message`.
+
+**Request Body:**
+```json
+{
+  "reason": "AGENT_REQUEST",
+  "priority": "high",
+  "collected_context": {}
+}
+```
+*Note: No `session_id` required; the API finds the active session for the authenticated `user_id`.*
 
 ---
 
 ## 🔒 Security Note
-This service is **stateless** and does not manage its own JWT tokens. It trusts the `user_id` provided in the payload. Production deployment must ensure this endpoint is only accessible to authenticated internal traffic.
+This service trusts a gateway to authenticate the user and inject `X-User-*` headers. Production deployment must ensure the API is only accessible behind that gateway.

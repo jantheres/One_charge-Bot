@@ -1,0 +1,283 @@
+{
+    "info": {
+        "_postman_id": "c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f",
+        "name": "1Charge Chatbot (5-Step Production)",
+        "description": "Production testing for the 5-step chatbot flow and emergency escalation.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "0. Reset & Clear Session",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "var newUserId = 'user_' + Math.floor(Math.random() * 100000);",
+                            "pm.collectionVariables.set('userId', newUserId);",
+                            "console.log('New Test User ID:', newUserId);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/health",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "health"
+                    ]
+                },
+                "description": "Clicking this clears any old session and starts a FRESH user ID."
+            }
+        },
+        {
+            "name": "1. Step 1: Identity (Greeting)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}",
+                        "type": "text"
+                    },
+                    {
+                        "key": "X-User-Name",
+                        "value": "John Doe",
+                        "type": "text"
+                    },
+                    {
+                        "key": "X-User-Phone",
+                        "value": "9876543210",
+                        "type": "text"
+                    },
+                    {
+                        "key": "X-Vehicle-Model",
+                        "value": "Tesla Model 3",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"hi\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "2. Step 2: Location (Capturing)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}",
+                        "type": "text"
+                    },
+                    {
+                        "key": "X-User-Name",
+                        "value": "John Doe",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"My phone is 9876543210 and I am at 123 MG Road, Bangalore\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "3. Step 3: Safety & Proximity",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"Yes I am safe and I am with the car\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "4. Step 4: Issue Selection",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"Flat tyre\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "5. Step 5: Service Routing (Final)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"Towing Assistance\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Emergency Escalation ( Sarah )",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-User-Id",
+                        "value": "emergency_user_{{$timestamp}}",
+                        "type": "text"
+                    },
+                    {
+                        "key": "X-User-Name",
+                        "value": "Emergency User",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"message\": \"Help, I had an accident!\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://{{host}}/api/chatbot/message",
+                    "protocol": "http",
+                    "host": [
+                        "{{host}}"
+                    ],
+                    "path": [
+                        "api",
+                        "chatbot",
+                        "message"
+                    ]
+                },
+                "description": "Tests the immediate handoff to Agent Sarah for an accident."
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "host",
+            "value": "localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "userId",
+            "value": "user_initial",
+            "type": "string"
+        }
+    ]
+}
